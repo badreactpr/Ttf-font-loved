@@ -4,18 +4,13 @@ import textwrap
 import requests
 import base64
 import io
+from urllib.parse import parse_qs
 
-def handler(request):
-    query = request.get("query", {})
-    notbook = query.get("notbook", "")
+def handler(event, context):
+    params = parse_qs(event.get("queryStringParameters") or "")
+    notbook = params.get("notbook", [""])[0]
 
-    if not notbook:
-        return {
-            "statusCode": 400,
-            "body": "Missing 'notbook' query parameter."
-        }
-
-    # Notebook setup
+    # Notebook layout
     lines_count = 17
     line_spacing = 70
     top_margin = 100
@@ -36,21 +31,16 @@ def handler(request):
         draw.line((50, y, width - 50, y), fill=(180, 200, 255), width=1)
 
     # Load font
-    font_path = "handwriting.ttf"  # Make sure this file exists in the repo
+    font_path = "handwriting.ttf"  # Make sure this file is in the same folder
     font_size = 59
-    try:
-        font = ImageFont.truetype(font_path, font_size)
-    except Exception as e:
-        return {
-            "statusCode": 500,
-            "body": f"Font loading error: {e}"
-        }
+    font = ImageFont.truetype(font_path, font_size)
 
-    # Wrap and draw text
+    # Draw text
     x = 120
     y = top_margin
     max_chars_per_line = 43
     ink_color = (30, 30, 110)
+
     wrapped_lines = textwrap.wrap(notbook, width=max_chars_per_line)
     for line in wrapped_lines[:lines_count]:
         jitter_x = random.randint(-1, 1)
@@ -58,7 +48,7 @@ def handler(request):
         draw.text((x + jitter_x, y + jitter_y), line, font=font, fill=ink_color)
         y += line_spacing
 
-    # Convert to base64 PNG
+    # Convert image to base64
     buffer = io.BytesIO()
     image.save(buffer, format="PNG")
     img_base64 = base64.b64encode(buffer.getvalue()).decode("utf-8")
@@ -76,13 +66,12 @@ def handler(request):
         image_url = response.json()['data']['url']
         return {
             "statusCode": 200,
-            "headers": {"Content-Type": "application/json"},
-            "body": f'{{"image_url": "{image_url}", "credit": "API by LastWarning"}}'
+            "body": f'{{"url": "{image_url}"}}',
+            "headers": {"Content-Type": "application/json"}
         }
     else:
         return {
             "statusCode": 500,
-            "body": f"Upload failed: {response.text}"
+            "body": f'{{"error": "{response.text}"}}',
+            "headers": {"Content-Type": "application/json"}
         }
-
-# Made with love by LastWarning
